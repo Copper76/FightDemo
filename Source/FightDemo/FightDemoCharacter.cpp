@@ -10,6 +10,7 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
+#include "Kismet/KismetMathLibrary.h"
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
@@ -58,6 +59,26 @@ void AFightDemoCharacter::BeginPlay()
 {
 	// Call the base class  
 	Super::BeginPlay();
+
+	LockMarker = GetWorld()->SpawnActor<ALockMarker>(ALockMarker::StaticClass(), GetActorLocation() + FVector(0.0f, 100.0f, 0.0f), FRotator::ZeroRotator);
+	LockMarker->SetActorHiddenInGame(!bLocking);
+	LockMarker->SetActorTickEnabled(bLocking);
+}
+
+void AFightDemoCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	// Call the parent class's EndPlay function
+	Super::EndPlay(EndPlayReason);
+}
+
+void AFightDemoCharacter::Tick(float DeltaTime)
+{
+	if (bLocking)
+	{
+		FRotator LookAtRotation = UKismetMathLibrary::FindLookAtRotation(FollowCamera->GetComponentLocation(), LockMarker->GetActorLocation());
+		Controller->SetControlRotation(LookAtRotation);
+		LockMarker->SetActorRotation(LookAtRotation.GetInverse());
+	}
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -86,6 +107,9 @@ void AFightDemoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 
 		// Looking
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AFightDemoCharacter::Look);
+
+		// Looking
+		EnhancedInputComponent->BindAction(LockAction, ETriggerEvent::Triggered, this, &AFightDemoCharacter::ToggleLock);
 	}
 	else
 	{
@@ -127,4 +151,12 @@ void AFightDemoCharacter::Look(const FInputActionValue& Value)
 		AddControllerYawInput(LookAxisVector.X);
 		AddControllerPitchInput(LookAxisVector.Y);
 	}
+}
+
+void AFightDemoCharacter::ToggleLock(const FInputActionValue& Value)
+{
+	bLocking = !bLocking;
+
+	LockMarker->SetActorHiddenInGame(!bLocking);
+	LockMarker->SetActorTickEnabled(bLocking);
 }

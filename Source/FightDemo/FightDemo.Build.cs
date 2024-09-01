@@ -8,6 +8,13 @@ public class FightDemo : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
+		PublicIncludePaths.AddRange(
+            new string[] {
+                "FightDemo/Public",
+                "FightDemo/Misc"
+            }
+        );
+
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput" });
 	}
 }
