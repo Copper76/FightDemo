@@ -108,16 +108,23 @@ void AFightDemoCharacter::Tick(float DeltaTime)
 
 	if (bInAttack)
 	{
-		bool complete;
-		complete = !SetActorLocation(FMath::VInterpTo(GetActorLocation(), TargetPosition, DeltaTime, MoveToTargetSpeed), true);
+		bool complete = false;
+		FVector newLocation = FMath::VInterpTo(GetActorLocation(), TargetPosition, DeltaTime, MoveToTargetSpeed);
+
+		complete |= !SetActorLocation(newLocation, true);
 
 		SetActorRotation(FMath::RInterpTo(GetActorRotation(), TargetRotation, DeltaTime, TurnToTargetSpeed));
 
+		bool successful = FVector::Dist2D(GetActorLocation(), TargetPosition) < AttackTolerance;
 
-		complete = FVector::Distance(GetActorLocation(), TargetPosition) < 10.0f;
+		complete |= successful;
 
 		if (complete)
 		{
+			//if (successful)
+			//{
+			//	CurrentEnemy->Hurt();
+			//}
 			if (CurrentAttack < AttackCount)
 			{
 				ExecuteAttack();
@@ -132,6 +139,8 @@ void AFightDemoCharacter::Tick(float DeltaTime)
 	{
 		ExecuteAttack();
 	}
+
+	InputDir = FVector::ZeroVector;
 }
 
 AEnemy* AFightDemoCharacter::GetCurrentEnemy() const

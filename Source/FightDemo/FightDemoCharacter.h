@@ -149,6 +149,8 @@ private:
 
 	int CurrentAttack = 0;
 
+	float AttackTolerance = 10.0f;
+
 private:
 	bool bLocking = false;
 
