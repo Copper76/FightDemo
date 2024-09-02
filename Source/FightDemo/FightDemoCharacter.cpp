@@ -71,6 +71,22 @@ void AFightDemoCharacter::BeginPlay()
 	LockMarker->SetActorTickEnabled(bLocking);
 }
 
+void AFightDemoCharacter::Jump()
+{
+	if (!bInAttack)
+	{
+		Super::Jump();
+	}
+}
+
+void AFightDemoCharacter::StopJumping()
+{
+	if (!bInAttack)
+	{
+		Super::StopJumping();
+	}
+}
+
 void AFightDemoCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	// Call the parent class's EndPlay function
@@ -87,13 +103,40 @@ void AFightDemoCharacter::Tick(float DeltaTime)
 	}
 	else
 	{
-		CurrentEnemy = GetCurrentEnemy();
+		CurrentTarget = GetCurrentEnemy();
+	}
+
+	if (bInAttack)
+	{
+		bool complete;
+		complete = !SetActorLocation(FMath::VInterpTo(GetActorLocation(), TargetPosition, DeltaTime, MoveToTargetSpeed), true);
+
+		SetActorRotation(FMath::RInterpTo(GetActorRotation(), TargetRotation, DeltaTime, TurnToTargetSpeed));
+
+
+		complete = FVector::Distance(GetActorLocation(), TargetPosition) < 10.0f;
+
+		if (complete)
+		{
+			if (CurrentAttack < AttackCount)
+			{
+				ExecuteAttack();
+			}
+			else
+			{
+				EndAttack();
+			}
+		}
+	}
+	else if (AttackCount > 0)
+	{
+		ExecuteAttack();
 	}
 }
 
 AEnemy* AFightDemoCharacter::GetCurrentEnemy() const
 {
-	FVector attackDirection = GetVelocity().GetSafeNormal();
+	FVector attackDirection = InputDir;
 
 	if (attackDirection.IsNearlyZero())
 	{
@@ -102,15 +145,15 @@ AEnemy* AFightDemoCharacter::GetCurrentEnemy() const
 
 	attackDirection.Z = 0.0f;//No vertical checking, enemies should be on a similar platform as player
 
-	FVector startLocation = GetActorLocation();
-	FVector endLocation = startLocation + attackDirection * DetectRange;
+	const FVector startLocation = GetActorLocation();
+	const FVector endLocation = startLocation + attackDirection * DetectRange;
 
-	float sphereRadius = 50.0f;
+	const float sphereRadius = 50.0f;
 
 	TArray<FHitResult> hitResults;
 
 	// Define collision query parameters
-	FCollisionQueryParams params(SCENE_QUERY_STAT(PerformSphereCast), false, this);
+	const FCollisionQueryParams params(SCENE_QUERY_STAT(PerformSphereCast), false, this);
 
 	// Perform the sphere cast
 	bool bHit = GetWorld()->SweepMultiByChannel(
@@ -180,19 +223,18 @@ void AFightDemoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 	
 	// Set up action bindings
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent)) {
-		
-		// Jumping
-		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &ACharacter::Jump);
-		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
+		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &AFightDemoCharacter::Jump);
+		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &AFightDemoCharacter::StopJumping);
 
-		// Moving
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AFightDemoCharacter::Move);
 
-		// Looking
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AFightDemoCharacter::Look);
 
-		// Looking
 		EnhancedInputComponent->BindAction(LockAction, ETriggerEvent::Triggered, this, &AFightDemoCharacter::ToggleLock);
+
+		EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Triggered, this, &AFightDemoCharacter::Attack);
+
+		EnhancedInputComponent->BindAction(CounterAction, ETriggerEvent::Triggered, this, &AFightDemoCharacter::Counter);
 	}
 	else
 	{
@@ -217,9 +259,15 @@ void AFightDemoCharacter::Move(const FInputActionValue& Value)
 		// get right vector 
 		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
 
-		// add movement 
-		AddMovementInput(ForwardDirection, MovementVector.Y);
-		AddMovementInput(RightDirection, MovementVector.X);
+		InputDir = RightDirection * MovementVector.X + ForwardDirection * MovementVector.Y;
+		InputDir.Normalize();
+
+		if (!bInAttack)
+		{
+			// add movement 
+			AddMovementInput(ForwardDirection, MovementVector.Y);
+			AddMovementInput(RightDirection, MovementVector.X);
+		}
 	}
 }
 
@@ -236,6 +284,62 @@ void AFightDemoCharacter::Look(const FInputActionValue& Value)
 	}
 }
 
+void AFightDemoCharacter::Attack(const FInputActionValue& Value)
+{
+	if (AttackCount < MaxCombo)
+	{
+		AttackCount++;
+	}
+}
+
+void AFightDemoCharacter::ExecuteAttack()
+{
+	UE_LOG(LogTemp, Warning, TEXT("ATTACK"));
+
+	if (CurrentTarget)
+	{
+		CurrentEnemy = CurrentTarget;
+	}
+	if (CurrentEnemy)
+	{
+		FVector enemyLocation = CurrentEnemy->GetActorLocation();
+		enemyLocation.Z = GetActorLocation().Z;
+		FVector enemyDir = enemyLocation - GetActorLocation();
+		float enemyDistance = enemyDir.Length();
+		enemyDir.Normalize();
+		if (enemyDistance > AttackRange + AttackStopDistance)
+		{
+			TargetPosition = GetActorLocation() + enemyDir * EmptyAttackMoveDistance;
+		}
+		else
+		{
+			TargetPosition = enemyLocation - enemyDir * AttackStopDistance;
+		}
+	}
+	else
+	{
+		TargetPosition = FollowCamera->GetForwardVector() * EmptyAttackMoveDistance;
+		TargetPosition.Z = 0.0f;
+		TargetPosition += GetActorLocation();
+	}
+
+	CurrentAttack++;
+	TargetRotation = UKismetMathLibrary::FindLookAtRotation(GetActorLocation(), TargetPosition);
+	bInAttack = true;
+}
+
+void AFightDemoCharacter::EndAttack()
+{
+	CurrentAttack = 0;
+	AttackCount = 0;
+	bInAttack = false;
+}
+
+void AFightDemoCharacter::Counter(const FInputActionValue& Value)
+{
+
+}
+
 void AFightDemoCharacter::ToggleLock(const FInputActionValue& Value)
 {
 	bLocking = !bLocking;
@@ -246,8 +350,8 @@ void AFightDemoCharacter::ToggleLock(const FInputActionValue& Value)
 
 		if (lockingEnemy)
 		{
-			CurrentEnemy = lockingEnemy;
-			LockMarker->Attach(CurrentEnemy->GetMesh());
+			CurrentTarget = lockingEnemy;
+			LockMarker->Attach(CurrentTarget->GetMesh());
 		}
 		else
 		{
@@ -275,7 +379,7 @@ AEnemy* AFightDemoCharacter::GetBestEnemy() const
 	screenCentre.X = screenWidth / 2.0f;
 	screenCentre.Y = screenHeight / 2.0f;
 
-	FVector playerLocation = GetActorLocation();
+	const FVector playerLocation = GetActorLocation();
 
 	AActor* lockingEnemy = nullptr;
 
@@ -293,7 +397,7 @@ AEnemy* AFightDemoCharacter::GetBestEnemy() const
 		// Project the world location to screen space
 		if (PlayerController->ProjectWorldLocationToScreen(enemyLocation, screenPosition))
 		{
-			float distanceFromCentre = FVector2D::Distance(screenPosition, screenCentre);
+			const float distanceFromCentre = FVector2D::Distance(screenPosition, screenCentre);
 
 			if (distanceFromCentre < minDistance)
 			{

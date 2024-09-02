@@ -34,13 +34,14 @@ public:
 	/** Returns FollowCamera subobject **/
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
 
-protected:
-
-	/** Called for movement input */
+private:
 	void Move(const FInputActionValue& Value);
 
-	/** Called for looking input */
 	void Look(const FInputActionValue& Value);
+
+	void Attack(const FInputActionValue& Value);
+
+	void Counter(const FInputActionValue& Value);
 
 	void ToggleLock(const FInputActionValue& Value);
 
@@ -51,14 +52,23 @@ protected:
 	// To add mapping context
 	virtual void BeginPlay();
 
+	virtual void Jump() override;
+
+	virtual void StopJumping() override;
+
 private:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
 	AEnemy* GetCurrentEnemy() const;
+
 	AEnemy* GetBestEnemy() const;
 
-	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	void ExecuteAttack();
+
+	void EndAttack();
 
 public:
 	/** Camera boom positioning the camera behind the character */
@@ -88,19 +98,60 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* LockAction;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* AttackAction;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* CounterAction;
+
 private:
 	//Objects
 	ALockMarker* LockMarker;
+
+	AEnemy* CurrentTarget;
 
 	AEnemy* CurrentEnemy;
 
 	APlayerController* PlayerController;
 
 private:
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Parameter, meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Parameters, meta = (AllowPrivateAccess = "true"))
 	float DetectRange = 1000.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Parameters, meta = (AllowPrivateAccess = "true"))
+	float AttackRange = 1500.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Parameters, meta = (AllowPrivateAccess = "true"))
+	float AttackStopDistance = 200.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Parameters, meta = (AllowPrivateAccess = "true"))
+	float EmptyAttackMoveDistance = 100.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Parameters, meta = (AllowPrivateAccess = "true"))
+	float TurnToTargetSpeed = 60.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Parameters, meta = (AllowPrivateAccess = "true"))
+	float MoveToTargetSpeed = 10.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Parameters, meta = (AllowPrivateAccess = "true"))
+	float AttackOffset = 100.0f;
+
+	FVector TargetPosition;
+
+	FRotator TargetRotation;
+
+	FVector InputDir;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Fight, meta = (AllowPrivateAccess = "true"))
+	int MaxCombo = 3;
+
+	int AttackCount = 0;
+
+	int CurrentAttack = 0;
 
 private:
 	bool bLocking = false;
+
+	bool bInAttack = false;
 };
 
