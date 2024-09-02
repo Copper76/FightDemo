@@ -10,8 +10,8 @@ public class FightDemo : ModuleRules
 
 		PublicIncludePaths.AddRange(
             new string[] {
-                "FightDemo/Public",
-                "FightDemo/Misc"
+                "FightDemo/Misc",
+                "FightDemo/Enemies",
             }
         );
 

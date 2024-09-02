@@ -10,7 +10,7 @@ ALockMarker::ALockMarker()
 	PrimaryActorTick.bCanEverTick = true;
 
 	mark = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Marker"));
-	SetRootComponent(mark);
+	mark->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereMeshAsset(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
 	if (SphereMeshAsset.Succeeded())
@@ -34,21 +34,21 @@ ALockMarker::ALockMarker()
 	}
 
 	mark->SetRelativeScale3D(FVector(0.1f));
+
+	SetRootComponent(mark);
 }
 
 // Called when the game starts or when spawned
 void ALockMarker::BeginPlay()
 {
 	Super::BeginPlay();
-	
 }
 
-void ALockMarker::Attach(TWeakObjectPtr<AActor> target)
+void ALockMarker::Attach(TWeakObjectPtr<USkeletalMeshComponent> target)
 {
 	if (target.IsValid())
 	{
-		SetActorLocation(target->GetActorLocation());
-		AttachToActor(target.Get(), FAttachmentTransformRules::KeepRelativeTransform);
+		AttachToComponent(target.Get(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, FName("LockSocket"));
 	}
 }
 

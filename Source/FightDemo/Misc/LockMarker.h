@@ -25,5 +25,5 @@ private:
 	UStaticMeshComponent* mark;
 
 public:	
-	void Attach(TWeakObjectPtr<AActor> target);
+	void Attach(TWeakObjectPtr<USkeletalMeshComponent> target);
 };

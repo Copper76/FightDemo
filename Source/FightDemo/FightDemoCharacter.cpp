@@ -11,6 +11,8 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
 #include "Kismet/KismetMathLibrary.h"
+#include "Kismet/GameplayStatics.h"
+#include "Enemies/Enemy.h"
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
@@ -21,6 +23,10 @@ AFightDemoCharacter::AFightDemoCharacter()
 {
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
+
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.TickGroup = TG_PrePhysics;
+	PrimaryActorTick.AddPrerequisite(GetCharacterMovement(), GetCharacterMovement()->PrimaryComponentTick);
 		
 	// Don't rotate when the controller rotates. Let that just affect the camera.
 	bUseControllerRotationPitch = false;
@@ -60,7 +66,7 @@ void AFightDemoCharacter::BeginPlay()
 	// Call the base class  
 	Super::BeginPlay();
 
-	LockMarker = GetWorld()->SpawnActor<ALockMarker>(ALockMarker::StaticClass(), GetActorLocation() + FVector(0.0f, 100.0f, 0.0f), FRotator::ZeroRotator);
+	LockMarker = GetWorld()->SpawnActor<ALockMarker>(ALockMarker::StaticClass(), FVector::ZeroVector, FRotator::ZeroRotator);
 	LockMarker->SetActorHiddenInGame(!bLocking);
 	LockMarker->SetActorTickEnabled(bLocking);
 }
@@ -79,6 +85,82 @@ void AFightDemoCharacter::Tick(float DeltaTime)
 		Controller->SetControlRotation(LookAtRotation);
 		LockMarker->SetActorRotation(LookAtRotation.GetInverse());
 	}
+	else
+	{
+		CurrentEnemy = GetCurrentEnemy();
+	}
+}
+
+AEnemy* AFightDemoCharacter::GetCurrentEnemy() const
+{
+	FVector attackDirection = GetVelocity().GetSafeNormal();
+
+	if (attackDirection.IsNearlyZero())
+	{
+		attackDirection = FollowCamera->GetForwardVector(); //Use Camera direction if player is not moving
+	}
+
+	attackDirection.Z = 0.0f;//No vertical checking, enemies should be on a similar platform as player
+
+	FVector startLocation = GetActorLocation();
+	FVector endLocation = startLocation + attackDirection * DetectRange;
+
+	float sphereRadius = 50.0f;
+
+	TArray<FHitResult> hitResults;
+
+	// Define collision query parameters
+	FCollisionQueryParams params(SCENE_QUERY_STAT(PerformSphereCast), false, this);
+
+	// Perform the sphere cast
+	bool bHit = GetWorld()->SweepMultiByChannel(
+		hitResults,                      // Array to store hit results
+		startLocation,                   // Start location
+		endLocation,                     // End location
+		FQuat::Identity,                 // Rotation (no rotation for sphere)
+		ECC_Visibility,                  // Collision channel (use ECC_Pawn, ECC_WorldStatic, etc.)
+		FCollisionShape::MakeSphere(sphereRadius), // Collision shape (sphere with defined radius)
+		params                           // Collision query parameters
+	);
+
+#if WITH_EDITOR
+	DrawDebugLine(GetWorld(), startLocation, endLocation, FColor::Red, false, -1.0f, 0, 5.0f);
+#endif
+
+	if (bHit && hitResults.Num() > 0)
+	{
+		// Sort the results by distance
+		hitResults.Sort([](const FHitResult& A, const FHitResult& B) {
+			return A.Distance < B.Distance;
+			});
+
+		// Process sorted results
+		for (const FHitResult& hit : hitResults)
+		{
+			AActor* hitActor = hit.GetActor();
+			if (!hitActor)
+			{
+				continue;
+			}
+
+			//Stop if we hit an enemy
+			if (hitActor->IsA(AEnemy::StaticClass()))
+			{
+#if WITH_EDITOR
+				DrawDebugSphere(GetWorld(), hit.ImpactPoint, sphereRadius, 12, FColor::Green, false, -1.0f);
+#endif
+				return Cast<AEnemy>(hitActor);
+			}
+
+			//Stop if we hit a wall
+			if (hitActor->GetRootComponent()->Mobility == EComponentMobility::Static)
+			{
+				break;
+			}
+		}
+	}
+
+	return nullptr;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -87,7 +169,8 @@ void AFightDemoCharacter::Tick(float DeltaTime)
 void AFightDemoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	// Add Input Mapping Context
-	if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
+	PlayerController = Cast<APlayerController>(GetController());
+	if (PlayerController)
 	{
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
 		{
@@ -145,7 +228,7 @@ void AFightDemoCharacter::Look(const FInputActionValue& Value)
 	// input is a Vector2D
 	FVector2D LookAxisVector = Value.Get<FVector2D>();
 
-	if (Controller != nullptr)
+	if (Controller != nullptr && !bLocking)
 	{
 		// add yaw and pitch input to controller
 		AddControllerYawInput(LookAxisVector.X);
@@ -157,6 +240,68 @@ void AFightDemoCharacter::ToggleLock(const FInputActionValue& Value)
 {
 	bLocking = !bLocking;
 
+	if (bLocking)
+	{
+		AEnemy* lockingEnemy = GetBestEnemy();
+
+		if (lockingEnemy)
+		{
+			CurrentEnemy = lockingEnemy;
+			LockMarker->Attach(CurrentEnemy->GetMesh());
+		}
+		else
+		{
+			bLocking = false;
+		}
+	}
+
 	LockMarker->SetActorHiddenInGame(!bLocking);
 	LockMarker->SetActorTickEnabled(bLocking);
+}
+
+AEnemy* AFightDemoCharacter::GetBestEnemy() const
+{
+	TArray<AActor*> foundEnemies;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AEnemy::StaticClass(), foundEnemies);
+
+	//Get Screen centre
+	int32 screenWidth, screenHeight;
+	PlayerController->GetViewportSize(screenWidth, screenHeight);
+
+	FVector2D screenCentre;
+	FVector2D screenPosition;
+
+	// Calculate the centre of the screen
+	screenCentre.X = screenWidth / 2.0f;
+	screenCentre.Y = screenHeight / 2.0f;
+
+	FVector playerLocation = GetActorLocation();
+
+	AActor* lockingEnemy = nullptr;
+
+	float minDistance = INFINITY;
+
+	for (AActor* enemy : foundEnemies)
+	{
+		FVector enemyLocation = enemy->GetActorLocation();
+
+		if (FVector::Distance(enemyLocation, playerLocation) > DetectRange)
+		{
+			continue;
+		}
+
+		// Project the world location to screen space
+		if (PlayerController->ProjectWorldLocationToScreen(enemyLocation, screenPosition))
+		{
+			float distanceFromCentre = FVector2D::Distance(screenPosition, screenCentre);
+
+			if (distanceFromCentre < minDistance)
+			{
+				lockingEnemy = enemy;
+				minDistance = distanceFromCentre;
+			}
+		}
+	}
+
+	return Cast<AEnemy>(lockingEnemy);
 }

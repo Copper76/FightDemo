@@ -6,6 +6,7 @@
 #include "GameFramework/Character.h"
 #include "Logging/LogMacros.h"
 #include "Misc/LockMarker.h"
+#include "Misc/LockComponent.h"
 
 #include "FightDemoCharacter.generated.h"
 
@@ -13,6 +14,8 @@ class USpringArmComponent;
 class UCameraComponent;
 class UInputMappingContext;
 class UInputAction;
+class AEnemy;
+
 struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
@@ -52,6 +55,9 @@ private:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
+	AEnemy* GetCurrentEnemy() const;
+	AEnemy* GetBestEnemy() const;
+
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 public:
@@ -82,7 +88,17 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* LockAction;
 
+private:
+	//Objects
 	ALockMarker* LockMarker;
+
+	AEnemy* CurrentEnemy;
+
+	APlayerController* PlayerController;
+
+private:
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Parameter, meta = (AllowPrivateAccess = "true"))
+	float DetectRange = 1000.0f;
 
 private:
 	bool bLocking = false;
