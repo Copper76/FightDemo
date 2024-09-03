@@ -106,21 +106,35 @@ void AFightDemoCharacter::Tick(float DeltaTime)
 		CurrentTarget = GetCurrentEnemy();
 	}
 
-	if (PlayerState == EPlayerState::ATTACK)
+	if (PlayerState == EPlayerState::DASH)
 	{
 		bool complete = false;
+		FVector oldLocation = GetActorLocation();
 		FVector newLocation = FMath::VInterpTo(GetActorLocation(), TargetPosition, DeltaTime, MoveToTargetSpeed);
+
+		//if (DashTime > MinimumJumpTime)
+		//{
+		//	DashTimer = FMath::Min(DashTimer + DeltaTime, DashTime);
+		//	float offset = DashCurve->GetFloatValue(DashTimer / DashTime);
+		//	UE_LOG(LogTemp, Warning, TEXT("%f"), offset);
+		//	newLocation += FVector(0.0f, 0.0f, offset);
+		//}
 
 		complete |= !SetActorLocation(newLocation, true);
 
 		SetActorRotation(FMath::RInterpTo(GetActorRotation(), TargetRotation, DeltaTime, TurnToTargetSpeed));
 
-		bool successful = FVector::Dist2D(GetActorLocation(), TargetPosition) < AttackTolerance;
+		bool successful = FVector::DistSquared2D(GetActorLocation(), TargetPosition) < AttackTolerance * AttackTolerance;
 
 		complete |= successful;
 
 		if (complete)
 		{
+			if (GetActorRotation() != TargetRotation) // in case the rotation was not done when the player is at target location
+			{
+				SetActorRotation(TargetRotation);
+			}
+
 			//if (successful)
 			//{
 			//	CurrentEnemy->Hurt();
@@ -154,7 +168,7 @@ AEnemy* AFightDemoCharacter::GetCurrentEnemy() const
 
 	attackDirection.Z = 0.0f;//No vertical checking, enemies should be on a similar platform as player
 
-	const FVector startLocation = GetActorLocation();
+	const FVector startLocation = GetActorLocation() + FVector(0.0f, 0.0f, 50.0f);
 	const FVector endLocation = startLocation + attackDirection * DetectRange;
 
 	const float sphereRadius = 50.0f;
@@ -165,13 +179,11 @@ AEnemy* AFightDemoCharacter::GetCurrentEnemy() const
 	const FCollisionQueryParams params(SCENE_QUERY_STAT(PerformSphereCast), false, this);
 
 	// Perform the sphere cast
-	bool bHit = GetWorld()->SweepMultiByChannel(
+	bool bHit = GetWorld()->LineTraceMultiByChannel(
 		hitResults,                      // Array to store hit results
 		startLocation,                   // Start location
 		endLocation,                     // End location
-		FQuat::Identity,                 // Rotation (no rotation for sphere)
 		ECC_Visibility,                  // Collision channel (use ECC_Pawn, ECC_WorldStatic, etc.)
-		FCollisionShape::MakeSphere(sphereRadius), // Collision shape (sphere with defined radius)
 		params                           // Collision query parameters
 	);
 
@@ -309,6 +321,7 @@ void AFightDemoCharacter::ExecuteAttack()
 	{
 		CurrentEnemy = CurrentTarget;
 	}
+
 	if (CurrentEnemy)
 	{
 		FVector enemyLocation = CurrentEnemy->GetActorLocation();
@@ -343,9 +356,12 @@ void AFightDemoCharacter::ExecuteAttack()
 		}
 	}
 
+	//DashTime = FVector::Dist2D(GetActorLocation(), TargetPosition) / MoveToTargetSpeed / 100.0f;
+	//DashTimer = 0.0f;
+
 	CurrentAttack++;
 	TargetRotation = UKismetMathLibrary::FindLookAtRotation(GetActorLocation(), TargetPosition);
-	PlayerState = EPlayerState::ATTACK;
+	PlayerState = EPlayerState::DASH;
 }
 
 void AFightDemoCharacter::EndAttack()

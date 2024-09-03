@@ -25,10 +25,11 @@ enum class EPlayerState : uint8
 {
 	None = 0,
 	MOVE = 1 << 0,
-	ATTACK = 1 << 1,
-	DODGE = 1 << 2,
-	COUNTER = 1 << 3,
-	HURT = 1 << 4,
+	DASH = 1 << 1,
+	ATTACK = 1 << 2,
+	DODGE = 1 << 3,
+	COUNTER = 1 << 4,
+	HURT = 1 << 5,
 };
 
 ENUM_CLASS_FLAGS(EPlayerState);
@@ -117,6 +118,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* CounterAction;
 
+	//UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Parameters, meta = (AllowPrivateAccess = "true"))
+	//UCurveFloat* DashCurve;
+
 private:
 	//Objects
 	ALockMarker* LockMarker;
@@ -130,7 +134,7 @@ private:
 private:
 	EPlayerState PlayerState = EPlayerState::MOVE;
 
-	EPlayerState AttackableStates = EPlayerState::MOVE | EPlayerState::ATTACK;
+	EPlayerState AttackableStates = EPlayerState::MOVE | EPlayerState::ATTACK | EPlayerState::DASH;
 
 private:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Parameters, meta = (AllowPrivateAccess = "true"))
@@ -153,6 +157,13 @@ private:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Parameters, meta = (AllowPrivateAccess = "true"))
 	float AttackOffset = 100.0f;
+
+	//UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Parameters, meta = (AllowPrivateAccess = "true"))
+	//float MinimumJumpTime = 1.0f;
+
+	//float DashTime;
+
+	//float DashTimer;
 
 	FVector TargetPosition;
 
