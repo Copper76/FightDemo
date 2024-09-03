@@ -124,7 +124,7 @@ void AFightDemoCharacter::Tick(float DeltaTime)
 
 		SetActorRotation(FMath::RInterpTo(GetActorRotation(), TargetRotation, DeltaTime, TurnToTargetSpeed));
 
-		bool successful = FVector::DistSquared2D(GetActorLocation(), TargetPosition) < AttackTolerance * AttackTolerance;
+		const bool successful = FVector::DistSquared2D(GetActorLocation(), TargetPosition) < AttackTolerance * AttackTolerance;
 
 		complete |= successful;
 
@@ -168,7 +168,7 @@ AEnemy* AFightDemoCharacter::GetCurrentEnemy() const
 
 	attackDirection.Z = 0.0f;//No vertical checking, enemies should be on a similar platform as player
 
-	const FVector startLocation = GetActorLocation() + FVector(0.0f, 0.0f, 50.0f);
+	const FVector startLocation = GetActorLocation() + FVector(0.0f, 0.0f, 25.0f);
 	const FVector endLocation = startLocation + attackDirection * DetectRange;
 
 	const float sphereRadius = 50.0f;
@@ -179,11 +179,13 @@ AEnemy* AFightDemoCharacter::GetCurrentEnemy() const
 	const FCollisionQueryParams params(SCENE_QUERY_STAT(PerformSphereCast), false, this);
 
 	// Perform the sphere cast
-	bool bHit = GetWorld()->LineTraceMultiByChannel(
+	bool bHit = GetWorld()->SweepMultiByChannel(
 		hitResults,                      // Array to store hit results
 		startLocation,                   // Start location
 		endLocation,                     // End location
+		FQuat::Identity,                 // Rotation (no rotation for sphere)
 		ECC_Visibility,                  // Collision channel (use ECC_Pawn, ECC_WorldStatic, etc.)
+		FCollisionShape::MakeSphere(sphereRadius), // Collision shape (sphere with defined radius)
 		params                           // Collision query parameters
 	);
 
@@ -266,7 +268,7 @@ void AFightDemoCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 void AFightDemoCharacter::Move(const FInputActionValue& Value)
 {
 	// input is a Vector2D
-	FVector2D MovementVector = Value.Get<FVector2D>();
+	const FVector2D MovementVector = Value.Get<FVector2D>();
 
 	if (Controller != nullptr)
 	{
@@ -295,7 +297,7 @@ void AFightDemoCharacter::Move(const FInputActionValue& Value)
 void AFightDemoCharacter::Look(const FInputActionValue& Value)
 {
 	// input is a Vector2D
-	FVector2D LookAxisVector = Value.Get<FVector2D>();
+	const FVector2D LookAxisVector = Value.Get<FVector2D>();
 
 	if (Controller != nullptr && !bLocking)
 	{
@@ -327,7 +329,7 @@ void AFightDemoCharacter::ExecuteAttack()
 		FVector enemyLocation = CurrentEnemy->GetActorLocation();
 		enemyLocation.Z = GetActorLocation().Z;
 		FVector enemyDir = enemyLocation - GetActorLocation();
-		float enemyDistance = enemyDir.Length();
+		const float enemyDistance = enemyDir.Length();
 		enemyDir.Normalize();
 		if (enemyDistance > AttackRange + AttackStopDistance)
 		{
