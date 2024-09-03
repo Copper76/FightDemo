@@ -35,7 +35,7 @@ This project is a demo project using Unreal Engine. The project is a practice pr
 - RMB to counter (not implemented)
 ### traditional combat related
 - MIDDLE MOUSE BUTTON to toggle locking
-- RMB to Heavy Attack
+- RMB to Heavy Attack (not implemented)
 
 ## Tools
 - Unreal 5.4
