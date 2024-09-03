@@ -73,7 +73,7 @@ void AFightDemoCharacter::BeginPlay()
 
 void AFightDemoCharacter::Jump()
 {
-	if (!bInAttack)
+	if (PlayerState == EPlayerState::MOVE)
 	{
 		Super::Jump();
 	}
@@ -81,7 +81,7 @@ void AFightDemoCharacter::Jump()
 
 void AFightDemoCharacter::StopJumping()
 {
-	if (!bInAttack)
+	if (PlayerState == EPlayerState::MOVE)
 	{
 		Super::StopJumping();
 	}
@@ -106,7 +106,7 @@ void AFightDemoCharacter::Tick(float DeltaTime)
 		CurrentTarget = GetCurrentEnemy();
 	}
 
-	if (bInAttack)
+	if (PlayerState == EPlayerState::ATTACK)
 	{
 		bool complete = false;
 		FVector newLocation = FMath::VInterpTo(GetActorLocation(), TargetPosition, DeltaTime, MoveToTargetSpeed);
@@ -271,7 +271,7 @@ void AFightDemoCharacter::Move(const FInputActionValue& Value)
 		InputDir = RightDirection * MovementVector.X + ForwardDirection * MovementVector.Y;
 		InputDir.Normalize();
 
-		if (!bInAttack)
+		if (PlayerState == EPlayerState::MOVE)
 		{
 			// add movement 
 			AddMovementInput(ForwardDirection, MovementVector.Y);
@@ -295,7 +295,7 @@ void AFightDemoCharacter::Look(const FInputActionValue& Value)
 
 void AFightDemoCharacter::Attack(const FInputActionValue& Value)
 {
-	if (AttackCount < MaxCombo)
+	if (AttackCount < MaxCombo && GetCharacterMovement()->IsMovingOnGround() && (PlayerState & AttackableStates) != EPlayerState::None)
 	{
 		AttackCount++;
 	}
@@ -320,6 +320,10 @@ void AFightDemoCharacter::ExecuteAttack()
 		{
 			TargetPosition = GetActorLocation() + enemyDir * EmptyAttackMoveDistance;
 		}
+		else if (enemyDistance < AttackStopDistance)
+		{
+			TargetPosition = GetActorLocation();
+		}
 		else
 		{
 			TargetPosition = enemyLocation - enemyDir * AttackStopDistance;
@@ -327,21 +331,29 @@ void AFightDemoCharacter::ExecuteAttack()
 	}
 	else
 	{
-		TargetPosition = FollowCamera->GetForwardVector() * EmptyAttackMoveDistance;
-		TargetPosition.Z = 0.0f;
-		TargetPosition += GetActorLocation();
+		if (InputDir.Length() < UE_KINDA_SMALL_NUMBER)
+		{
+			TargetPosition = FollowCamera->GetForwardVector() * EmptyAttackMoveDistance;
+			TargetPosition.Z = 0.0f;
+			TargetPosition += GetActorLocation();
+		}
+		else
+		{
+			TargetPosition = GetActorLocation() + InputDir * EmptyAttackMoveDistance;
+		}
 	}
 
 	CurrentAttack++;
 	TargetRotation = UKismetMathLibrary::FindLookAtRotation(GetActorLocation(), TargetPosition);
-	bInAttack = true;
+	PlayerState = EPlayerState::ATTACK;
 }
 
 void AFightDemoCharacter::EndAttack()
 {
 	CurrentAttack = 0;
 	AttackCount = 0;
-	bInAttack = false;
+	CurrentEnemy = nullptr;
+	PlayerState = EPlayerState::MOVE;
 }
 
 void AFightDemoCharacter::Counter(const FInputActionValue& Value)

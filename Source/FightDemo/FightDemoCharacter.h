@@ -20,6 +20,19 @@ struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 
+UENUM(BlueprintType, meta = (BitFlags, useEnumValuesAsMaskValuesInEditor = "true"))
+enum class EPlayerState : uint8
+{
+	None = 0,
+	MOVE = 1 << 0,
+	ATTACK = 1 << 1,
+	DODGE = 1 << 2,
+	COUNTER = 1 << 3,
+	HURT = 1 << 4,
+};
+
+ENUM_CLASS_FLAGS(EPlayerState);
+
 UCLASS(config=Game)
 class AFightDemoCharacter final : public ACharacter
 {
@@ -115,6 +128,11 @@ private:
 	APlayerController* PlayerController;
 
 private:
+	EPlayerState PlayerState = EPlayerState::MOVE;
+
+	EPlayerState AttackableStates = EPlayerState::MOVE | EPlayerState::ATTACK;
+
+private:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Parameters, meta = (AllowPrivateAccess = "true"))
 	float DetectRange = 1000.0f;
 
@@ -153,7 +171,5 @@ private:
 
 private:
 	bool bLocking = false;
-
-	bool bInAttack = false;
 };
 
